@@ -1,0 +1,13 @@
+/target
+Cargo.lock
+
+# Aider runtime files
+.aider.chat.history.md
+.aider.tags.cache.v3/
+.aider*.tmp
+
+# vicraft auto-generated context (not committed)
+.aider/context/
+
+# Local config overrides
+*.local.toml

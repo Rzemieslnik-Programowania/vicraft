@@ -1,0 +1,49 @@
+[package]
+name = "vicraft"
+version = "0.1.0"
+edition = "2021"
+description = "Spec-driven AI workflow CLI — part of the Vitooler series"
+authors = ["danjarosz"]
+license = "MIT"
+repository = ""  # fill in after creating GH repo
+
+[[bin]]
+name = "vicraft"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP (Linear, Context7)
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Git
+git2 = { version = "0.19", default-features = false }
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Date/time
+chrono = "0.4"
+
+# Color output
+colored = "2"
+
+# Interactive prompts
+inquire = "0.7"
+
+# Temp files (for commit/pr editor flow)
+tempfile = "3"
+
+# Config directory resolution
+dirs-next = "2"
