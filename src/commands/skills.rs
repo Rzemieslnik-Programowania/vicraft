@@ -2,10 +2,8 @@ use anyhow::{bail, Context, Result};
 use chrono::Local;
 use colored::Colorize;
 use std::process::Command;
-use walkdir::WalkDir;
 
 use crate::cli::SkillsAction;
-use crate::config::Config;
 use crate::templates;
 
 pub fn run(action: SkillsAction) -> Result<()> {
@@ -24,10 +22,11 @@ fn list() -> Result<()> {
     }
 
     let mut found = false;
-    for entry in WalkDir::new(dir).min_depth(1).max_depth(1) {
+    for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
-        if entry.path().extension().and_then(|e| e.to_str()) == Some("md") {
-            let name = entry.file_name().to_string_lossy();
+        let path = entry.path();
+        if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("md") {
+            let name = entry.file_name().to_string_lossy().to_string();
             println!("  {}", name.yellow());
             found = true;
         }
