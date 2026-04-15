@@ -11,3 +11,6 @@ Cargo.lock
 
 # Local config overrides
 *.local.toml
+
+# Claude Code local state
+.claude/settings.local.json
