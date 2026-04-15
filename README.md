@@ -23,9 +23,19 @@ vicraft orchestrates a structured, step-by-step development workflow where every
 ```bash
 git clone <repo-url>
 cd vicraft
-cargo build --release
-sudo cp target/release/vicraft /usr/local/bin/vicraft
+cargo install --path .
 vicraft --version
+```
+
+`cargo install` places the binary in `~/.cargo/bin/vicraft` — make sure that directory is on your `PATH` (rustup adds it by default).
+
+If you'd rather install system-wide, build manually and copy the binary. Note that if you set `build.target-dir` in `~/.cargo/config.toml`, the binary lives there instead of `./target/`:
+
+```bash
+cargo build --release
+sudo cp "$(cargo metadata --format-version 1 --no-deps | \
+  python3 -c 'import sys,json; print(json.load(sys.stdin)["target_directory"])')/release/vicraft" \
+  /usr/local/bin/vicraft
 ```
 
 ---
