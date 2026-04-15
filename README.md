@@ -20,12 +20,23 @@ vicraft orchestrates a structured, step-by-step development workflow where every
 
 ## Installation
 
+Install straight from GitHub (no manual clone needed):
+
 ```bash
-git clone <repo-url>
+cargo install --git https://github.com/Rzemieslnik-Programowania/vicraft.git
+vicraft --version
+```
+
+Or clone first and install from the working tree — useful if you plan to hack on vicraft:
+
+```bash
+git clone https://github.com/Rzemieslnik-Programowania/vicraft.git
 cd vicraft
 cargo install --path .
 vicraft --version
 ```
+
+> **Note:** `cargo install --path .` fails with *could not find `Cargo.toml`* if you run it outside the repo root. Make sure `pwd` shows the cloned `vicraft` directory before running it.
 
 `cargo install` places the binary in `~/.cargo/bin/vicraft`. rustup normally adds this directory to your `PATH`; if `vicraft --version` prints *command not found*, append it yourself (zsh):
 

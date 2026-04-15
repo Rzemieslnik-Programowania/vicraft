@@ -5,7 +5,7 @@ edition = "2021"
 description = "Spec-driven AI workflow CLI — part of the Vitooler series"
 authors = ["danjarosz"]
 license = "MIT"
-repository = ""  # fill in after creating GH repo
+repository = "https://github.com/Rzemieslnik-Programowania/vicraft"
 
 [[bin]]
 name = "vicraft"
