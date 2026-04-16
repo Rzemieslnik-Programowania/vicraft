@@ -1,8 +1,10 @@
 use anyhow::{Context, Result};
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Stdio};
 
 use crate::config::AiderConfig;
+use crate::tokens::{self, AiderResult};
 
 pub struct AiderCommand<'a> {
     cfg: &'a AiderConfig,
@@ -53,27 +55,80 @@ impl<'a> AiderCommand<'a> {
     }
 
     /// Run and capture stdout (for ask mode — spec/plan/review).
-    pub fn run_capture(&self) -> Result<String> {
+    pub fn run_capture(&self) -> Result<AiderResult> {
         let output = self
             .build_command()
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::piped())
             .output()
             .context("Failed to run aider — is it installed? (`pip install aider-chat`)")?;
-        self.check_status(&output)?;
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+
+        let stderr_text = String::from_utf8_lossy(&output.stderr).to_string();
+        for line in stderr_text.lines() {
+            eprintln!("{line}");
+        }
+        let stderr_lines: Vec<String> = stderr_text.lines().map(String::from).collect();
+
+        if !output.status.success() {
+            anyhow::bail!(
+                "aider exited with status {}: {}",
+                output.status,
+                stderr_text
+            );
+        }
+
+        let usage = tokens::extract_usage_from_stderr(&stderr_lines);
+        Ok(AiderResult {
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            usage,
+        })
     }
 
     /// Run interactively with inherited stdio (for impl mode).
-    pub fn run_interactive(&self) -> Result<()> {
-        let status = self
+    /// The returned `AiderResult::stdout` is always empty because stdout is inherited.
+    pub fn run_interactive(&self) -> Result<AiderResult> {
+        let mut child = self
             .build_command()
-            .status()
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::piped())
+            .spawn()
             .context("Failed to run aider — is it installed? (`pip install aider-chat`)")?;
+
+        let stderr = child.stderr.take().expect("stderr was piped");
+        let handle = std::thread::spawn(move || {
+            let reader = std::io::BufReader::new(stderr);
+            let mut lines = Vec::new();
+            for line in reader.lines() {
+                match line {
+                    Ok(l) => {
+                        eprintln!("{l}");
+                        lines.push(l);
+                    }
+                    Err(e) => {
+                        eprintln!("warning: error reading aider stderr: {e}");
+                        break;
+                    }
+                }
+            }
+            lines
+        });
+
+        let stderr_lines = handle.join().unwrap_or_else(|_| {
+            eprintln!("warning: stderr reader thread panicked");
+            Vec::new()
+        });
+        let status = child.wait().context("Failed to wait for aider process")?;
+
         if !status.success() {
             anyhow::bail!("aider exited with status: {}", status);
         }
-        Ok(())
+
+        let usage = tokens::extract_usage_from_stderr(&stderr_lines);
+        Ok(AiderResult {
+            stdout: String::new(),
+            usage,
+        })
     }
 
     fn build_command(&self) -> Command {
@@ -85,7 +140,6 @@ impl<'a> AiderCommand<'a> {
         cmd.arg("--no-auto-commits");
 
         for flag in &self.cfg.extra_flags {
-            // extra_flags may already include --no-auto-commits; skip duplicates
             if flag != "--no-auto-commits" {
                 cmd.arg(flag);
             }
@@ -95,26 +149,13 @@ impl<'a> AiderCommand<'a> {
             cmd.arg("--read").arg(path);
         }
 
-        // Always pass the message last
         cmd.arg("--message").arg(&self.message);
 
-        // Editable files come after flags
         for path in &self.edit_files {
             cmd.arg(path);
         }
 
         cmd
-    }
-
-    fn check_status(&self, output: &Output) -> Result<()> {
-        if !output.status.success() {
-            anyhow::bail!(
-                "aider exited with status {}: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
-        Ok(())
     }
 }
 

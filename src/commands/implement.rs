@@ -6,6 +6,7 @@ use crate::aider::{self, AiderCommand};
 use crate::config::Config;
 use crate::git;
 use crate::templates;
+use crate::tokens;
 
 pub async fn run(plan_path: &str, cfg: &Config) -> Result<()> {
     git::assert_git_repo()?;
@@ -43,7 +44,8 @@ pub async fn run(plan_path: &str, cfg: &Config) -> Result<()> {
         cmd = cmd.read(path);
     }
 
-    cmd.run_interactive()?;
+    let result = cmd.run_interactive()?;
+    tokens::display_usage(&result.usage);
 
     // 6. Generate implementation summary
     std::fs::create_dir_all(".implementations")?;

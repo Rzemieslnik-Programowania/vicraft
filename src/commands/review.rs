@@ -6,6 +6,7 @@ use crate::aider::AiderCommand;
 use crate::commands::plan::next_version;
 use crate::config::Config;
 use crate::git;
+use crate::tokens;
 
 pub async fn run(cfg: &Config) -> Result<()> {
     git::assert_git_repo()?;
@@ -84,9 +85,11 @@ pub async fn run(cfg: &Config) -> Result<()> {
     let model = cfg.model_for_step("review");
     println!("{}", "Running AI review...".bold());
     println!("  Model: {}", model.cyan());
-    let output = AiderCommand::ask(&cfg.aider, &prompt)
+    let result = AiderCommand::ask(&cfg.aider, &prompt)
         .override_model(model)
         .run_capture()?;
+    tokens::display_usage(&result.usage);
+    let output = result.stdout;
 
     // 6. Save review
     std::fs::create_dir_all(".reviews")?;

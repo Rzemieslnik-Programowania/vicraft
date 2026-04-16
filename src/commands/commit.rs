@@ -5,6 +5,7 @@ use inquire::Select;
 use crate::aider::AiderCommand;
 use crate::config::Config;
 use crate::git;
+use crate::tokens;
 
 pub async fn run(staged: bool, cfg: &Config) -> Result<()> {
     git::assert_git_repo()?;
@@ -50,11 +51,11 @@ Rules:
 "#
     );
 
-    let message = AiderCommand::ask(&cfg.aider, &prompt)
+    let result = AiderCommand::ask(&cfg.aider, &prompt)
         .override_model(model)
-        .run_capture()?
-        .trim()
-        .to_string();
+        .run_capture()?;
+    tokens::display_usage(&result.usage);
+    let message = result.stdout.trim().to_string();
 
     if message.is_empty() {
         bail!("Aider returned an empty commit message.");
