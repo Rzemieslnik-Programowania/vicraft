@@ -1,13 +1,12 @@
-use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
 
+use crate::error::{Result, VicraftError};
 use crate::{config, templates};
 
 pub fn run() -> Result<()> {
     println!("{}", "Initializing vicraft project structure...".bold());
 
-    // Directories
     let dirs = [
         ".aider/skills",
         ".aider/context",
@@ -19,11 +18,11 @@ pub fn run() -> Result<()> {
         ".reviews",
     ];
     for dir in &dirs {
-        std::fs::create_dir_all(dir)?;
+        std::fs::create_dir_all(dir)
+            .map_err(|e| VicraftError::io("init", format!("failed to create {dir}: {e}")))?;
         println!("  {} Created {dir}/", "✓".green());
     }
 
-    // Templates
     let template_files: &[(&str, &str)] = &[
         (
             ".aider/templates/ISSUE_TEMPLATE.md",
@@ -47,22 +46,18 @@ pub fn run() -> Result<()> {
         println!("  {} Generated {path}", "✓".green());
     }
 
-    // CONVENTIONS.md skeleton
     write_if_missing(".aider/CONVENTIONS.md", templates::CONVENTIONS_SKELETON)?;
     println!(
         "  {} Generated .aider/CONVENTIONS.md (skeleton — fill it in!)",
         "✓".green()
     );
 
-    // .aider.conf.yml
     write_if_missing(".aider.conf.yml", templates::AIDER_CONF)?;
     println!("  {} Generated .aider.conf.yml", "✓".green());
 
-    // .gitignore update
     update_gitignore()?;
     println!("  {} Updated .gitignore", "✓".green());
 
-    // Global config
     write_default_config_if_missing()?;
 
     println!();
@@ -82,7 +77,8 @@ pub fn run() -> Result<()> {
 
 fn write_if_missing(path: &str, content: &str) -> Result<()> {
     if !Path::new(path).exists() {
-        std::fs::write(path, content)?;
+        std::fs::write(path, content)
+            .map_err(|e| VicraftError::io("init", format!("failed to write {path}: {e}")))?;
     }
     Ok(())
 }
@@ -90,11 +86,7 @@ fn write_if_missing(path: &str, content: &str) -> Result<()> {
 fn write_default_config_if_missing() -> Result<()> {
     let path = config::config_path()?;
     if path.exists() {
-        println!(
-            "  {} Config already exists: {}",
-            "→".blue(),
-            path.display()
-        );
+        println!("  {} Config already exists: {}", "→".blue(), path.display());
         return Ok(());
     }
     config::save(&config::Config::default())?;
@@ -108,15 +100,20 @@ fn write_default_config_if_missing() -> Result<()> {
 
 fn update_gitignore() -> Result<()> {
     let path = Path::new(".gitignore");
-    let entries = "\n# vicraft — auto-generated context (not committed)\n.aider/context/\n";
+    let entries =
+        "\n# vicraft — auto-generated context and logs (not committed)\n.aider/context/\n.vicraft/\n";
 
     if path.exists() {
-        let current = std::fs::read_to_string(path)?;
+        let current = std::fs::read_to_string(path)
+            .map_err(|e| VicraftError::io("init", format!("failed to read .gitignore: {e}")))?;
         if !current.contains(".aider/context/") {
-            std::fs::write(path, current + entries)?;
+            std::fs::write(path, current + entries).map_err(|e| {
+                VicraftError::io("init", format!("failed to update .gitignore: {e}"))
+            })?;
         }
     } else {
-        std::fs::write(path, entries.trim_start())?;
+        std::fs::write(path, entries.trim_start())
+            .map_err(|e| VicraftError::io("init", format!("failed to create .gitignore: {e}")))?;
     }
     Ok(())
 }

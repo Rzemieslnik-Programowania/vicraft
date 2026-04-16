@@ -1,8 +1,8 @@
-use anyhow::Result;
 use colored::Colorize;
 
 use crate::aider::AiderCommand;
 use crate::config::Config;
+use crate::error::{Result, VicraftError};
 use crate::tokens;
 
 const SCAN_PROMPT: &str = r#"Analyze this codebase and produce three markdown files.
@@ -21,7 +21,8 @@ pub async fn run(cfg: &Config) -> Result<()> {
     let model = cfg.model_for_step("scan");
     println!("{}", "Scanning codebase...".bold());
     println!("  Model: {}", model.cyan());
-    std::fs::create_dir_all(".aider/context")?;
+    std::fs::create_dir_all(".aider/context")
+        .map_err(|e| VicraftError::io("scan", format!("failed to create .aider/context/: {e}")))?;
 
     let result = AiderCommand::ask(&cfg.aider, SCAN_PROMPT)
         .override_model(model)
@@ -29,7 +30,6 @@ pub async fn run(cfg: &Config) -> Result<()> {
     tokens::display_usage(&result.usage);
     let output = result.stdout;
 
-    // Parse the three sections from Aider's output
     let files = parse_sections(&output);
 
     let targets = [
@@ -40,14 +40,13 @@ pub async fn run(cfg: &Config) -> Result<()> {
 
     for (key, path) in &targets {
         if let Some(content) = files.iter().find(|(k, _)| k == key).map(|(_, v)| v) {
-            std::fs::write(path, content)?;
+            std::fs::write(path, content)
+                .map_err(|e| VicraftError::io("scan", format!("failed to write {path}: {e}")))?;
             println!("  {} Saved {path}", "✓".green());
-        } else {
-            // Write raw output as fallback for the first file
-            if *key == "CODEBASE" {
-                std::fs::write(path, &output)?;
-                println!("  {} Saved {path} (raw output)", "✓".green());
-            }
+        } else if *key == "CODEBASE" {
+            std::fs::write(path, &output)
+                .map_err(|e| VicraftError::io("scan", format!("failed to write {path}: {e}")))?;
+            println!("  {} Saved {path} (raw output)", "✓".green());
         }
     }
 
@@ -56,7 +55,6 @@ pub async fn run(cfg: &Config) -> Result<()> {
     Ok(())
 }
 
-/// Splits Aider output into named sections delimited by `=== FILE: <name> ===`.
 fn parse_sections(output: &str) -> Vec<(String, String)> {
     let mut sections = Vec::new();
     let mut current_key: Option<String> = None;
@@ -64,12 +62,10 @@ fn parse_sections(output: &str) -> Vec<(String, String)> {
 
     for line in output.lines() {
         if let Some(rest) = line.strip_prefix("=== FILE: ") {
-            // Save previous section
             if let Some(key) = current_key.take() {
                 sections.push((key, current_lines.join("\n")));
                 current_lines.clear();
             }
-            // Start new section — extract name without extension
             let name = rest
                 .trim_end_matches(" ===")
                 .trim_end_matches(".md")
@@ -79,7 +75,6 @@ fn parse_sections(output: &str) -> Vec<(String, String)> {
             current_lines.push(line);
         }
     }
-    // Flush last section
     if let Some(key) = current_key {
         sections.push((key, current_lines.join("\n")));
     }

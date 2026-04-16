@@ -1,9 +1,9 @@
-use anyhow::{Context, Result};
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use crate::config::AiderConfig;
+use crate::error::{looks_like_credential, scrub_secrets, Result, VicraftError};
 use crate::tokens::{self, AiderResult};
 
 pub struct AiderCommand<'a> {
@@ -15,7 +15,6 @@ pub struct AiderCommand<'a> {
 }
 
 impl<'a> AiderCommand<'a> {
-    /// Ask-only mode: no files are edited. Use for spec/plan/review generation.
     pub fn ask(cfg: &'a AiderConfig, message: impl Into<String>) -> Self {
         Self {
             cfg,
@@ -26,7 +25,6 @@ impl<'a> AiderCommand<'a> {
         }
     }
 
-    /// Edit mode: files in edit_files may be modified by Aider.
     pub fn edit(cfg: &'a AiderConfig, message: impl Into<String>) -> Self {
         Self {
             cfg,
@@ -47,34 +45,32 @@ impl<'a> AiderCommand<'a> {
         self
     }
 
-    /// Adds a file to Aider's editable list. Not yet called — reserved for future sub-commands.
     #[allow(dead_code)]
     pub fn with_file(mut self, path: impl AsRef<Path>) -> Self {
         self.edit_files.push(path.as_ref().to_owned());
         self
     }
 
-    /// Run and capture stdout (for ask mode — spec/plan/review).
     pub fn run_capture(&self) -> Result<AiderResult> {
         let output = self
             .build_command()
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .context("Failed to run aider — is it installed? (`pip install aider-chat`)")?;
+            .map_err(classify_spawn_error)?;
 
         let stderr_text = String::from_utf8_lossy(&output.stderr).to_string();
-        for line in stderr_text.lines() {
-            eprintln!("{line}");
-        }
         let stderr_lines: Vec<String> = stderr_text.lines().map(String::from).collect();
 
         if !output.status.success() {
-            anyhow::bail!(
-                "aider exited with status {}: {}",
-                output.status,
-                stderr_text
-            );
+            return Err(classify_process_error(
+                &output.status.to_string(),
+                &stderr_text,
+            ));
+        }
+
+        for line in stderr_text.lines() {
+            eprintln!("{line}");
         }
 
         let usage = tokens::extract_usage_from_stderr(&stderr_lines);
@@ -84,8 +80,6 @@ impl<'a> AiderCommand<'a> {
         })
     }
 
-    /// Run interactively with inherited stdio (for impl mode).
-    /// The returned `AiderResult::stdout` is always empty because stdout is inherited.
     pub fn run_interactive(&self) -> Result<AiderResult> {
         let mut child = self
             .build_command()
@@ -93,16 +87,22 @@ impl<'a> AiderCommand<'a> {
             .stdout(Stdio::inherit())
             .stderr(Stdio::piped())
             .spawn()
-            .context("Failed to run aider — is it installed? (`pip install aider-chat`)")?;
+            .map_err(classify_spawn_error)?;
 
-        let stderr = child.stderr.take().expect("stderr was piped");
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| VicraftError::aider_failed("internal", "stderr pipe not available"))?;
+
         let handle = std::thread::spawn(move || {
             let reader = std::io::BufReader::new(stderr);
             let mut lines = Vec::new();
             for line in reader.lines() {
                 match line {
                     Ok(l) => {
-                        eprintln!("{l}");
+                        if !looks_like_credential(&l) {
+                            eprintln!("{l}");
+                        }
                         lines.push(l);
                     }
                     Err(e) => {
@@ -118,10 +118,13 @@ impl<'a> AiderCommand<'a> {
             eprintln!("warning: stderr reader thread panicked");
             Vec::new()
         });
-        let status = child.wait().context("Failed to wait for aider process")?;
+        let status = child
+            .wait()
+            .map_err(|e| VicraftError::aider_failed("wait", e.to_string()))?;
 
         if !status.success() {
-            anyhow::bail!("aider exited with status: {}", status);
+            let stderr_text = stderr_lines.join("\n");
+            return Err(classify_process_error(&status.to_string(), &stderr_text));
         }
 
         let usage = tokens::extract_usage_from_stderr(&stderr_lines);
@@ -159,7 +162,51 @@ impl<'a> AiderCommand<'a> {
     }
 }
 
-/// Returns the default read files that every Aider session loads.
+fn classify_spawn_error(e: std::io::Error) -> VicraftError {
+    if e.kind() == std::io::ErrorKind::NotFound {
+        VicraftError::aider_not_found()
+    } else {
+        VicraftError::aider_failed("spawn", e.to_string())
+    }
+}
+
+fn classify_process_error(status: &str, stderr: &str) -> VicraftError {
+    let lower = stderr.to_lowercase();
+
+    if lower.contains("api key")
+        || lower.contains("api_key")
+        || lower.contains("authentication")
+        || lower.contains("unauthorized")
+    {
+        return VicraftError::aider_model_error(
+            "API authentication failed — check your API key or model configuration",
+        );
+    }
+
+    if lower.contains("rate limit") || lower.contains("429") {
+        return VicraftError::aider_model_error(
+            "rate limited by the model provider — wait and retry",
+        );
+    }
+
+    if lower.contains("model not found")
+        || lower.contains("does not exist")
+        || lower.contains("unknown model")
+    {
+        return VicraftError::aider_model_error(
+            "model not available — check your model configuration",
+        );
+    }
+
+    if looks_like_credential(stderr) {
+        return VicraftError::aider_model_error(
+            "API credential error — check your API key or model configuration",
+        );
+    }
+
+    VicraftError::aider_failed(status, scrub_secrets(stderr))
+}
+
 pub fn default_read_files() -> Vec<PathBuf> {
     let candidates = [
         ".aider/CONVENTIONS.md",
@@ -173,7 +220,6 @@ pub fn default_read_files() -> Vec<PathBuf> {
         .collect()
 }
 
-/// Returns skill files relevant to the given content (naive keyword match).
 pub fn relevant_skills(content: &str) -> Vec<PathBuf> {
     let skills_dir = std::path::Path::new(".aider/skills");
     if !skills_dir.exists() {
