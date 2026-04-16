@@ -4,7 +4,6 @@ use colored::Colorize;
 use std::path::PathBuf;
 use std::process::Command;
 
-use crate::config::Config;
 use crate::git::slugify;
 
 pub fn run(name: &str, open: bool) -> Result<()> {
@@ -28,15 +27,24 @@ pub fn run(name: &str, open: bool) -> Result<()> {
     // Write file
     std::fs::create_dir_all(".issues")?;
     std::fs::write(&path, &template)?;
-    println!("{} Created: {}", "✓".green(), path.display().to_string().yellow());
+    println!(
+        "{} Created: {}",
+        "✓".green(),
+        path.display().to_string().yellow()
+    );
 
     // Open in editor if requested
     if open {
         let editor = std::env::var("VISUAL")
             .or_else(|_| std::env::var("EDITOR"))
             .unwrap_or_else(|_| "vi".into());
-        Command::new(&editor).arg(&path).status()
+        let status = Command::new(&editor)
+            .arg(&path)
+            .status()
             .with_context(|| format!("Failed to open editor: {editor}"))?;
+        if !status.success() {
+            bail!("Editor exited with non-zero status.");
+        }
     }
 
     println!();

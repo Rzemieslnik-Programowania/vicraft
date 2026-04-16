@@ -26,7 +26,7 @@ pub async fn run(plan_path: &str, cfg: &Config) -> Result<()> {
     let spec = std::fs::read_to_string(&spec_path).unwrap_or_default();
 
     // 4. Build implementation prompt
-    let prompt = build_impl_prompt(&plan, &spec, plan_path);
+    let prompt = build_impl_prompt(&plan, &spec);
 
     // 5. Run Aider in interactive/edit mode
     println!("{}", "Running Aider implementation...".bold());
@@ -48,7 +48,11 @@ pub async fn run(plan_path: &str, cfg: &Config) -> Result<()> {
     std::fs::create_dir_all(".implementations")?;
     let impl_path = make_impl_path(&task_id);
     write_impl_summary(&impl_path, &task_id, plan_path, &branch)?;
-    println!("{} Implementation summary: {}", "✓".green(), impl_path.yellow());
+    println!(
+        "{} Implementation summary: {}",
+        "✓".green(),
+        impl_path.yellow()
+    );
 
     // 7. WIP commit
     println!("{}", "Creating WIP commit...".bold());
@@ -62,7 +66,7 @@ pub async fn run(plan_path: &str, cfg: &Config) -> Result<()> {
     Ok(())
 }
 
-fn build_impl_prompt(plan: &str, spec: &str, plan_path: &str) -> String {
+fn build_impl_prompt(plan: &str, spec: &str) -> String {
     format!(
         r#"Implement the following plan step by step.
 

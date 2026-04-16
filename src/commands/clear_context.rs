@@ -14,7 +14,10 @@ pub fn run() -> Result<()> {
     }
 
     if removed == 0 {
-        println!("{}", "No Aider context files found — already clean.".yellow());
+        println!(
+            "{}",
+            "No Aider context files found — already clean.".yellow()
+        );
     } else {
         println!("{}", "Context cleared.".green().bold());
     }

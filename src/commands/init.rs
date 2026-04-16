@@ -25,10 +25,22 @@ pub fn run() -> Result<()> {
 
     // Templates
     let template_files: &[(&str, &str)] = &[
-        (".aider/templates/ISSUE_TEMPLATE.md", templates::ISSUE_TEMPLATE),
-        (".aider/templates/SPEC_TEMPLATE.md", templates::SPEC_TEMPLATE),
-        (".aider/templates/PLAN_TEMPLATE.md", templates::PLAN_TEMPLATE),
-        (".aider/templates/REVIEW_TEMPLATE.md", templates::REVIEW_TEMPLATE),
+        (
+            ".aider/templates/ISSUE_TEMPLATE.md",
+            templates::ISSUE_TEMPLATE,
+        ),
+        (
+            ".aider/templates/SPEC_TEMPLATE.md",
+            templates::SPEC_TEMPLATE,
+        ),
+        (
+            ".aider/templates/PLAN_TEMPLATE.md",
+            templates::PLAN_TEMPLATE,
+        ),
+        (
+            ".aider/templates/REVIEW_TEMPLATE.md",
+            templates::REVIEW_TEMPLATE,
+        ),
     ];
     for (path, content) in template_files {
         write_if_missing(path, content)?;
@@ -37,7 +49,10 @@ pub fn run() -> Result<()> {
 
     // CONVENTIONS.md skeleton
     write_if_missing(".aider/CONVENTIONS.md", templates::CONVENTIONS_SKELETON)?;
-    println!("  {} Generated .aider/CONVENTIONS.md (skeleton — fill it in!)", "✓".green());
+    println!(
+        "  {} Generated .aider/CONVENTIONS.md (skeleton — fill it in!)",
+        "✓".green()
+    );
 
     // .aider.conf.yml
     write_if_missing(".aider.conf.yml", templates::AIDER_CONF)?;
@@ -50,8 +65,14 @@ pub fn run() -> Result<()> {
     println!();
     println!("{}", "Next steps:".bold());
     println!("  1. Fill in {}", ".aider/CONVENTIONS.md".yellow());
-    println!("  2. Add project-specific skills in {}", ".aider/skills/".yellow());
-    println!("  3. Run {} to analyze your codebase", "vicraft scan".cyan());
+    println!(
+        "  2. Add project-specific skills in {}",
+        ".aider/skills/".yellow()
+    );
+    println!(
+        "  3. Run {} to analyze your codebase",
+        "vicraft scan".cyan()
+    );
 
     Ok(())
 }

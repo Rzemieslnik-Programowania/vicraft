@@ -20,8 +20,7 @@ pub async fn run(cfg: &Config) -> Result<()> {
     println!("{}", "Scanning codebase...".bold());
     std::fs::create_dir_all(".aider/context")?;
 
-    let output = AiderCommand::ask(&cfg.aider, SCAN_PROMPT)
-        .run_capture()?;
+    let output = AiderCommand::ask(&cfg.aider, SCAN_PROMPT).run_capture()?;
 
     // Parse the three sections from Aider's output
     let files = parse_sections(&output);
@@ -64,7 +63,10 @@ fn parse_sections(output: &str) -> Vec<(String, String)> {
                 current_lines.clear();
             }
             // Start new section — extract name without extension
-            let name = rest.trim_end_matches(" ===").trim_end_matches(".md").to_uppercase();
+            let name = rest
+                .trim_end_matches(" ===")
+                .trim_end_matches(".md")
+                .to_uppercase();
             current_key = Some(name);
         } else if current_key.is_some() {
             current_lines.push(line);

@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
     pub aider: AiderConfig,
@@ -20,11 +20,12 @@ pub struct AiderConfig {
     pub extra_flags: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct LinearConfig {
     pub api_token: String,
     pub team_id: String,
+    /// Defaults to false (opt-in feature).
     pub auto_update_status: bool,
 }
 
@@ -41,7 +42,7 @@ pub struct GitConfig {
     pub branch_prefix: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct EditorConfig {
     /// Override $EDITOR/$VISUAL. Leave empty to auto-detect.
@@ -56,34 +57,15 @@ pub struct WebSearchConfig {
     pub searxng_url: String,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            aider: AiderConfig::default(),
-            linear: LinearConfig::default(),
-            context7: Context7Config::default(),
-            git: GitConfig::default(),
-            editor: EditorConfig::default(),
-            web_search: WebSearchConfig::default(),
-        }
-    }
-}
-
 impl Default for AiderConfig {
     fn default() -> Self {
         Self {
             model: "ollama/qwen3-coder:30b".into(),
-            extra_flags: vec!["--no-auto-commits".into(), "--map-tokens".into(), "4096".into()],
-        }
-    }
-}
-
-impl Default for LinearConfig {
-    fn default() -> Self {
-        Self {
-            api_token: String::new(),
-            team_id: String::new(),
-            auto_update_status: false,
+            extra_flags: vec![
+                "--no-auto-commits".into(),
+                "--map-tokens".into(),
+                "4096".into(),
+            ],
         }
     }
 }
@@ -103,12 +85,6 @@ impl Default for GitConfig {
     }
 }
 
-impl Default for EditorConfig {
-    fn default() -> Self {
-        Self { command: String::new() }
-    }
-}
-
 impl Default for WebSearchConfig {
     fn default() -> Self {
         Self {
@@ -119,15 +95,15 @@ impl Default for WebSearchConfig {
     }
 }
 
-pub fn config_path() -> PathBuf {
-    dirs_next::config_dir()
-        .unwrap_or_else(|| PathBuf::from("~/.config"))
-        .join("vicraft")
-        .join("config.toml")
+pub fn config_path() -> Result<PathBuf> {
+    let base = dirs_next::config_dir()
+        .or_else(|| dirs_next::home_dir().map(|h| h.join(".config")))
+        .context("Cannot determine config directory. Set $HOME or $XDG_CONFIG_HOME.")?;
+    Ok(base.join("vicraft").join("config.toml"))
 }
 
 pub fn load() -> Result<Config> {
-    let path = config_path();
+    let path = config_path()?;
     if !path.exists() {
         return Ok(Config::default());
     }
@@ -138,8 +114,10 @@ pub fn load() -> Result<Config> {
     Ok(cfg)
 }
 
+/// Serializes and writes the config. Not yet called — reserved for future `vicraft config` command.
+#[allow(dead_code)]
 pub fn save(cfg: &Config) -> Result<()> {
-    let path = config_path();
+    let path = config_path()?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -149,6 +127,8 @@ pub fn save(cfg: &Config) -> Result<()> {
 }
 
 impl EditorConfig {
+    /// Resolves the editor command. Not yet called — reserved for future editor integration.
+    #[allow(dead_code)]
     pub fn resolve(&self) -> String {
         if !self.command.is_empty() {
             return self.command.clone();

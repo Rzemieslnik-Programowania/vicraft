@@ -12,9 +12,7 @@ pub async fn run(cfg: &Config) -> Result<()> {
 
     // Verify gh CLI is available
     if !gh_available() {
-        bail!(
-            "GitHub CLI (gh) not found. Install with:\n  sudo dnf install gh\n  gh auth login"
-        );
+        bail!("GitHub CLI (gh) not found. Install with:\n  sudo dnf install gh\n  gh auth login");
     }
 
     let branch = git::current_branch()?;
@@ -55,8 +53,7 @@ Keep it concise — 150-300 words total.>
 "#
     );
 
-    let output = AiderCommand::ask(&cfg.aider, &prompt)
-        .run_capture()?;
+    let output = AiderCommand::ask(&cfg.aider, &prompt).run_capture()?;
 
     let (title, body) = parse_pr_output(&output, &branch);
 
@@ -68,8 +65,8 @@ Keep it concise — 150-300 words total.>
     println!("{}", "─".repeat(60));
     println!();
 
-    let choice = Select::new("Action:", vec!["Create PR", "Edit description", "Cancel"])
-        .prompt()?;
+    let choice =
+        Select::new("Action:", vec!["Create PR", "Edit description", "Cancel"]).prompt()?;
 
     match choice {
         "Create PR" => create_pr(&title, &body, &base)?,
@@ -95,12 +92,17 @@ fn parse_pr_output(output: &str, branch: &str) -> (String, String) {
         }
     }
     // Fallback
-    (format!("feat: changes from {branch}"), output.trim().to_string())
+    (
+        format!("feat: changes from {branch}"),
+        output.trim().to_string(),
+    )
 }
 
 fn create_pr(title: &str, body: &str, base: &str) -> Result<()> {
     let status = Command::new("gh")
-        .args(["pr", "create", "--title", title, "--body", body, "--base", base])
+        .args([
+            "pr", "create", "--title", title, "--body", body, "--base", base,
+        ])
         .status()?;
 
     if status.success() {
@@ -123,6 +125,11 @@ fn edit_in_temp(initial: &str) -> Result<String> {
     let editor = std::env::var("VISUAL")
         .or_else(|_| std::env::var("EDITOR"))
         .unwrap_or_else(|_| "vi".into());
-    std::process::Command::new(&editor).arg(tmp.path()).status()?;
+    let status = std::process::Command::new(&editor)
+        .arg(tmp.path())
+        .status()?;
+    if !status.success() {
+        anyhow::bail!("Editor exited with non-zero status.");
+    }
     Ok(std::fs::read_to_string(tmp.path())?.trim().to_string())
 }
