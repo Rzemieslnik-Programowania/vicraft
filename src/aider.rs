@@ -6,6 +6,7 @@ use crate::config::AiderConfig;
 
 pub struct AiderCommand<'a> {
     cfg: &'a AiderConfig,
+    override_model: Option<String>,
     read_files: Vec<PathBuf>,
     edit_files: Vec<PathBuf>,
     message: String,
@@ -16,6 +17,7 @@ impl<'a> AiderCommand<'a> {
     pub fn ask(cfg: &'a AiderConfig, message: impl Into<String>) -> Self {
         Self {
             cfg,
+            override_model: None,
             read_files: vec![],
             edit_files: vec![],
             message: message.into(),
@@ -26,10 +28,16 @@ impl<'a> AiderCommand<'a> {
     pub fn edit(cfg: &'a AiderConfig, message: impl Into<String>) -> Self {
         Self {
             cfg,
+            override_model: None,
             read_files: vec![],
             edit_files: vec![],
             message: message.into(),
         }
+    }
+
+    pub fn override_model(mut self, model: impl Into<String>) -> Self {
+        self.override_model = Some(model.into());
+        self
     }
 
     pub fn read(mut self, path: impl AsRef<Path>) -> Self {
@@ -70,7 +78,8 @@ impl<'a> AiderCommand<'a> {
 
     fn build_command(&self) -> Command {
         let mut cmd = Command::new("aider");
-        cmd.arg("--model").arg(&self.cfg.model);
+        let model = self.override_model.as_deref().unwrap_or(&self.cfg.model);
+        cmd.arg("--model").arg(model);
         cmd.arg("--yes-always");
         cmd.arg("--no-pretty");
         cmd.arg("--no-auto-commits");

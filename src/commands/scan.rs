@@ -17,10 +17,14 @@ Be concise. Each file should be under 400 words. Focus on what an AI assistant n
 to understand before modifying this codebase."#;
 
 pub async fn run(cfg: &Config) -> Result<()> {
+    let model = cfg.model_for_step("scan");
     println!("{}", "Scanning codebase...".bold());
+    println!("  Model: {}", model.cyan());
     std::fs::create_dir_all(".aider/context")?;
 
-    let output = AiderCommand::ask(&cfg.aider, SCAN_PROMPT).run_capture()?;
+    let output = AiderCommand::ask(&cfg.aider, SCAN_PROMPT)
+        .override_model(model)
+        .run_capture()?;
 
     // Parse the three sections from Aider's output
     let files = parse_sections(&output);

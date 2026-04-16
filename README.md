@@ -68,6 +68,15 @@ Global config at `~/.config/vicraft/config.toml`. Created with defaults on first
 model = "ollama/qwen3-coder:30b"
 extra_flags = ["--no-auto-commits", "--map-tokens", "4096"]
 
+[models]
+spec = "ollama/qwen3:32b"
+plan = "ollama/deepseek-r1:32b"
+implement = "ollama/qwen3-coder:30b"
+review = "ollama/glm4:32b"
+commit = "ollama/qwen3:32b"
+pr = "ollama/qwen3:32b"
+scan = "ollama/qwen3-coder:30b"
+
 [linear]
 api_token = ""   # or export SPEQ_LINEAR_TOKEN
 team_id = ""
@@ -90,6 +99,15 @@ mkdir -p ~/.config/vicraft && cat > ~/.config/vicraft/config.toml <<'EOF'
 [aider]
 model = "ollama/qwen3-coder:30b"
 extra_flags = ["--no-auto-commits", "--map-tokens", "4096"]
+
+[models]
+spec = "ollama/qwen3:32b"
+plan = "ollama/deepseek-r1:32b"
+implement = "ollama/qwen3-coder:30b"
+review = "ollama/glm4:32b"
+commit = "ollama/qwen3:32b"
+pr = "ollama/qwen3:32b"
+scan = "ollama/qwen3-coder:30b"
 
 [linear]
 api_token = ""   # or export SPEQ_LINEAR_TOKEN

@@ -81,8 +81,12 @@ pub async fn run(cfg: &Config) -> Result<()> {
     );
 
     // 5. Run review
+    let model = cfg.model_for_step("review");
     println!("{}", "Running AI review...".bold());
-    let output = AiderCommand::ask(&cfg.aider, &prompt).run_capture()?;
+    println!("  Model: {}", model.cyan());
+    let output = AiderCommand::ask(&cfg.aider, &prompt)
+        .override_model(model)
+        .run_capture()?;
 
     // 6. Save review
     std::fs::create_dir_all(".reviews")?;

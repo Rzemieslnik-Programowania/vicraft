@@ -53,8 +53,10 @@ Follow the SPEC_TEMPLATE structure exactly. Do not add or remove sections.
     );
 
     // 5. Run Aider in ask mode
+    let model = cfg.model_for_step("spec");
     println!("{}", "Generating spec with Aider...".bold());
-    let mut cmd = AiderCommand::ask(&cfg.aider, &prompt);
+    println!("  Model: {}", model.cyan());
+    let mut cmd = AiderCommand::ask(&cfg.aider, &prompt).override_model(model);
 
     for path in aider::default_read_files() {
         cmd = cmd.read(path);

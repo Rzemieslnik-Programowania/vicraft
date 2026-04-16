@@ -32,7 +32,9 @@ pub async fn run(cfg: &Config) -> Result<()> {
     let diff = git::diff_base_to_head(&base)?;
 
     // 3. Generate PR title and description
+    let model = cfg.model_for_step("pr");
     println!("{}", "Generating PR description...".bold());
+    println!("  Model: {}", model.cyan());
     let prompt = format!(
         r#"Generate a pull request title and description for the following changes.
 
@@ -53,7 +55,9 @@ Keep it concise — 150-300 words total.>
 "#
     );
 
-    let output = AiderCommand::ask(&cfg.aider, &prompt).run_capture()?;
+    let output = AiderCommand::ask(&cfg.aider, &prompt)
+        .override_model(model)
+        .run_capture()?;
 
     let (title, body) = parse_pr_output(&output, &branch);
 
