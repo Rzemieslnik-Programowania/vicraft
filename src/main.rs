@@ -4,6 +4,7 @@ mod commands;
 mod config;
 mod git;
 mod templates;
+mod tokens;
 
 use anyhow::Result;
 use clap::Parser;

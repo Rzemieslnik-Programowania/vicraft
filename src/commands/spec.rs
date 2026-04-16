@@ -4,6 +4,7 @@ use colored::Colorize;
 
 use crate::aider::{self, AiderCommand};
 use crate::config::Config;
+use crate::tokens;
 
 pub async fn run(input: &str, cfg: &Config) -> Result<()> {
     // 1. Fetch issue content
@@ -65,7 +66,9 @@ Follow the SPEC_TEMPLATE structure exactly. Do not add or remove sections.
         cmd = cmd.read(path);
     }
 
-    let output = cmd.run_capture()?;
+    let result = cmd.run_capture()?;
+    tokens::display_usage(&result.usage);
+    let output = result.stdout;
 
     // 6. Save spec
     std::fs::write(&spec_path, &output)?;

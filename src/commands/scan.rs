@@ -3,6 +3,7 @@ use colored::Colorize;
 
 use crate::aider::AiderCommand;
 use crate::config::Config;
+use crate::tokens;
 
 const SCAN_PROMPT: &str = r#"Analyze this codebase and produce three markdown files.
 Respond with three clearly separated sections, each starting with a line:
@@ -22,9 +23,11 @@ pub async fn run(cfg: &Config) -> Result<()> {
     println!("  Model: {}", model.cyan());
     std::fs::create_dir_all(".aider/context")?;
 
-    let output = AiderCommand::ask(&cfg.aider, SCAN_PROMPT)
+    let result = AiderCommand::ask(&cfg.aider, SCAN_PROMPT)
         .override_model(model)
         .run_capture()?;
+    tokens::display_usage(&result.usage);
+    let output = result.stdout;
 
     // Parse the three sections from Aider's output
     let files = parse_sections(&output);

@@ -6,6 +6,7 @@ use std::process::Command;
 use crate::aider::AiderCommand;
 use crate::config::Config;
 use crate::git;
+use crate::tokens;
 
 pub async fn run(cfg: &Config) -> Result<()> {
     git::assert_git_repo()?;
@@ -55,11 +56,12 @@ Keep it concise — 150-300 words total.>
 "#
     );
 
-    let output = AiderCommand::ask(&cfg.aider, &prompt)
+    let result = AiderCommand::ask(&cfg.aider, &prompt)
         .override_model(model)
         .run_capture()?;
+    tokens::display_usage(&result.usage);
 
-    let (title, body) = parse_pr_output(&output, &branch);
+    let (title, body) = parse_pr_output(&result.stdout, &branch);
 
     // 4. Show proposal
     println!();

@@ -4,6 +4,7 @@ use colored::Colorize;
 
 use crate::aider::{self, AiderCommand};
 use crate::config::Config;
+use crate::tokens;
 
 pub async fn run(input: &str, cfg: &Config) -> Result<()> {
     // Determine if input is a spec or a review file (for iteration)
@@ -93,7 +94,9 @@ Follow the PLAN_TEMPLATE structure exactly.
         cmd = cmd.read(path);
     }
 
-    let output = cmd.run_capture()?;
+    let result = cmd.run_capture()?;
+    tokens::display_usage(&result.usage);
+    let output = result.stdout;
 
     // 7. Save plan
     std::fs::write(&plan_path, &output)?;
