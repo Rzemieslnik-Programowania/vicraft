@@ -1,0 +1,55 @@
+# .mise.toml — template dla rustdev
+# Umieść w ~/dev/ jako wspólna baza, lub w katalogu projektu
+
+# ── Narzędzia i ich wersje ──────────────────────────────────────────
+[tools]
+rust = "stable"      # "stable" | "beta" | "nightly" | konkretna wersja np. "1.85.0"
+# node = "24"        # jeśli projekt ma frontend (Tauri, trunk, wasm-pack)
+# python = "3.13"    # jeśli projekt ma skrypty pomocnicze
+
+# ── Zmienne środowiskowe ─────────────────────────────────────────────
+[env]
+RUST_BACKTRACE = "1"             # pełny backtrace przy panice
+# RUST_LOG = "debug"             # poziom logowania (error|warn|info|debug|trace)
+# CROSS_CONTAINER_ENGINE = "podman"  # cross-rs używa Podmana zamiast Dockera
+# CARGO_TARGET_DIR = "/var/tmp/cargo-target"  # artefakty poza projektem
+# PKG_CONFIG_PATH = "/usr/lib64/pkgconfig"
+# OPENSSL_DIR = "/usr"
+# _.file = ".env"                # załaduj dodatkowo plik .env
+
+# ── Zadania ─────────────────────────────────────────────────────────
+# [tasks.dev]
+# run = "cargo run"
+
+# [tasks.build]
+# run = "cargo build --release"
+
+# [tasks.test]
+# run = "cargo test"
+
+# [tasks.lint]
+# run = "cargo clippy -- -D warnings"
+
+# [tasks.format]
+# run = "cargo fmt"
+
+# [tasks.check]
+# run = "cargo check"
+# description = "Szybka weryfikacja bez budowania"
+
+# [tasks.cross-arm]
+# run = "cross build --target aarch64-unknown-linux-gnu --release"
+# description = "Kompilacja krzyżowa na ARM Linux"
+
+# [tasks.cross-win]
+# run = "cargo xwin build --target x86_64-pc-windows-msvc --release"
+# description = "Kompilacja krzyżowa na Windows MSVC"
+
+# [tasks.wasm]
+# run = "wasm-pack build --target web"
+# description = "Budowanie WebAssembly"
+
+# ── Ustawienia mise ──────────────────────────────────────────────────
+# [settings]
+# experimental = true
+# jobs = 4
