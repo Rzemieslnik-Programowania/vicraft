@@ -1,20 +1,18 @@
-use anyhow::{bail, Context, Result};
 use chrono::Local;
 use colored::Colorize;
 
 use crate::aider::{self, AiderCommand};
 use crate::config::Config;
+use crate::error::{Result, VicraftError};
 use crate::tokens;
 
 pub async fn run(input: &str, cfg: &Config) -> Result<()> {
-    // Determine if input is a spec or a review file (for iteration)
     let (spec_path, review_content) = resolve_input(input)?;
 
-    // 1. Load spec
-    let spec = std::fs::read_to_string(&spec_path)
-        .with_context(|| format!("Cannot read spec: {spec_path}"))?;
+    let spec = std::fs::read_to_string(&spec_path).map_err(|_| {
+        VicraftError::file_not_found(&spec_path, "Check the path or generate a spec first")
+    })?;
 
-    // 2. Guard: unanswered open questions
     let unanswered = unanswered_open_questions(&spec);
     if !unanswered.is_empty() {
         eprintln!(
@@ -27,25 +25,28 @@ pub async fn run(input: &str, cfg: &Config) -> Result<()> {
         }
         eprintln!();
         eprintln!("Edit: {}", spec_path.yellow());
-        bail!("Resolve open questions first.");
+        return Err(VicraftError::validation("Resolve open questions first."));
     }
 
-    // 3. Derive task ID and output path
     let task_id = task_id_from_spec(&spec_path);
     let version = next_version(".plans", &task_id, "plan");
-    std::fs::create_dir_all(".plans")?;
+    std::fs::create_dir_all(".plans")
+        .map_err(|e| VicraftError::io("plan", format!("failed to create .plans/: {e}")))?;
     let plan_path = format!(".plans/{task_id}_plan{version}.md");
 
-    // 4. Load context
-    let plan_template = std::fs::read_to_string(".aider/templates/PLAN_TEMPLATE.md")
-        .context("PLAN_TEMPLATE.md not found — run `vicraft init` first")?;
+    let plan_template =
+        std::fs::read_to_string(".aider/templates/PLAN_TEMPLATE.md").map_err(|_| {
+            VicraftError::file_not_found(
+                ".aider/templates/PLAN_TEMPLATE.md",
+                "Run 'vicraft init' first",
+            )
+        })?;
     let conventions = std::fs::read_to_string(".aider/CONVENTIONS.md").unwrap_or_default();
     let codebase = std::fs::read_to_string(".aider/context/CODEBASE.md").unwrap_or_default();
     let patterns = std::fs::read_to_string(".aider/context/PATTERNS.md").unwrap_or_default();
 
     let date = Local::now().format("%Y-%m-%d");
 
-    // 5. Build prompt
     let review_section = if let Some(review) = &review_content {
         format!("\n## Previous review (address these issues)\n{review}\n")
     } else {
@@ -81,7 +82,6 @@ Follow the PLAN_TEMPLATE structure exactly.
 "#
     );
 
-    // 6. Run Aider in ask mode
     let model = cfg.model_for_step("plan");
     println!("{}", "Generating plan with Aider...".bold());
     println!("  Model: {}", model.cyan());
@@ -98,8 +98,8 @@ Follow the PLAN_TEMPLATE structure exactly.
     tokens::display_usage(&result.usage);
     let output = result.stdout;
 
-    // 7. Save plan
-    std::fs::write(&plan_path, &output)?;
+    std::fs::write(&plan_path, &output)
+        .map_err(|e| VicraftError::io("plan", format!("failed to write {plan_path}: {e}")))?;
     println!("{} Plan saved: {}", "✓".green(), plan_path.yellow());
 
     println!();
@@ -109,8 +109,6 @@ Follow the PLAN_TEMPLATE structure exactly.
     Ok(())
 }
 
-/// Returns unanswered questions from section 9 "Open questions".
-/// A question is unanswered if it is a checklist item starting with `- [ ]`.
 pub fn unanswered_open_questions(spec: &str) -> Vec<String> {
     let mut in_section = false;
     spec.lines()
@@ -128,14 +126,11 @@ pub fn unanswered_open_questions(spec: &str) -> Vec<String> {
         .collect()
 }
 
-/// If the input is a review file, find the matching spec automatically.
 fn resolve_input(input: &str) -> Result<(String, Option<String>)> {
     if input.contains("_review") && input.starts_with(".reviews/") {
         let review_content = std::fs::read_to_string(input)
-            .with_context(|| format!("Cannot read review: {input}"))?;
+            .map_err(|_| VicraftError::file_not_found(input, "Check the review file path"))?;
 
-        // Infer spec path from review filename
-        // .reviews/2026-04-15-user-auth_review_v2.md → task_id = 2026-04-15-user-auth
         let task_id = std::path::Path::new(input)
             .file_stem()
             .and_then(|s| s.to_str())
@@ -147,10 +142,10 @@ fn resolve_input(input: &str) -> Result<(String, Option<String>)> {
 
         let spec_path = format!(".specs/{task_id}_spec.md");
         if !std::path::Path::new(&spec_path).exists() {
-            bail!(
-                "Could not find spec for review. Expected: {spec_path}\n\
-                 Pass the spec path explicitly: vicraft plan {spec_path}"
-            );
+            return Err(VicraftError::file_not_found(
+                &spec_path,
+                format!("Pass the spec path explicitly: vicraft plan {spec_path}"),
+            ));
         }
 
         println!("{} Iteration mode — using review: {}", "↺".blue(), input);
@@ -170,7 +165,6 @@ fn task_id_from_spec(spec_path: &str) -> String {
         .to_string()
 }
 
-/// Returns "_v2", "_v3", etc. if versioned files already exist.
 pub fn next_version(dir: &str, task_id: &str, suffix: &str) -> String {
     let base = format!("{dir}/{task_id}_{suffix}.md");
     if !std::path::Path::new(&base).exists() {

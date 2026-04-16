@@ -1,38 +1,41 @@
-use anyhow::{bail, Result};
 use colored::Colorize;
 use inquire::Select;
 use std::process::Command;
 
 use crate::aider::AiderCommand;
 use crate::config::Config;
+use crate::error::{Result, VicraftError};
 use crate::git;
 use crate::tokens;
 
 pub async fn run(cfg: &Config) -> Result<()> {
     git::assert_git_repo()?;
 
-    // Verify gh CLI is available
     if !gh_available() {
-        bail!("GitHub CLI (gh) not found. Install with:\n  sudo dnf install gh\n  gh auth login");
+        return Err(VicraftError::external_tool(
+            "gh",
+            "GitHub CLI (gh) not found",
+            "Install with: sudo dnf install gh && gh auth login",
+        ));
     }
 
     let branch = git::current_branch()?;
     let base = git::base_branch(&cfg.git.base_branch);
 
-    // 1. Get all commits on this branch vs base
     let log = Command::new("git")
         .args(["log", "--oneline", &format!("{base}..HEAD")])
-        .output()?;
+        .output()
+        .map_err(|e| VicraftError::git("log", e.to_string(), ""))?;
     let commits = String::from_utf8_lossy(&log.stdout).to_string();
 
     if commits.trim().is_empty() {
-        bail!("No commits found between {base} and HEAD.");
+        return Err(VicraftError::validation(format!(
+            "No commits found between {base} and HEAD."
+        )));
     }
 
-    // 2. Get full diff for PR description generation
     let diff = git::diff_base_to_head(&base)?;
 
-    // 3. Generate PR title and description
     let model = cfg.model_for_step("pr");
     println!("{}", "Generating PR description...".bold());
     println!("  Model: {}", model.cyan());
@@ -63,7 +66,6 @@ Keep it concise — 150-300 words total.>
 
     let (title, body) = parse_pr_output(&result.stdout, &branch);
 
-    // 4. Show proposal
     println!();
     println!("{}", format!("PR title: {title}").bold());
     println!("{}", "─".repeat(60));
@@ -71,8 +73,9 @@ Keep it concise — 150-300 words total.>
     println!("{}", "─".repeat(60));
     println!();
 
-    let choice =
-        Select::new("Action:", vec!["Create PR", "Edit description", "Cancel"]).prompt()?;
+    let choice = Select::new("Action:", vec!["Create PR", "Edit description", "Cancel"])
+        .prompt()
+        .map_err(|e| VicraftError::validation(format!("prompt cancelled: {e}")))?;
 
     match choice {
         "Create PR" => create_pr(&title, &body, &base)?,
@@ -97,7 +100,6 @@ fn parse_pr_output(output: &str, branch: &str) -> (String, String) {
             return (title, body);
         }
     }
-    // Fallback
     (
         format!("feat: changes from {branch}"),
         output.trim().to_string(),
@@ -109,12 +111,23 @@ fn create_pr(title: &str, body: &str, base: &str) -> Result<()> {
         .args([
             "pr", "create", "--title", title, "--body", body, "--base", base,
         ])
-        .status()?;
+        .status()
+        .map_err(|e| {
+            VicraftError::external_tool(
+                "gh",
+                format!("failed to run: {e}"),
+                "Check gh installation",
+            )
+        })?;
 
     if status.success() {
         println!("{} Pull request created.", "✓".green());
     } else {
-        bail!("gh pr create failed. Check gh auth status.");
+        return Err(VicraftError::external_tool(
+            "gh",
+            "gh pr create failed",
+            "Check 'gh auth status' and ensure you are authenticated",
+        ));
     }
     Ok(())
 }
@@ -125,17 +138,33 @@ fn gh_available() -> bool {
 
 fn edit_in_temp(initial: &str) -> Result<String> {
     use std::io::Write;
-    let mut tmp = tempfile::NamedTempFile::new()?;
-    write!(tmp, "{initial}")?;
-    tmp.flush()?;
+    let mut tmp = tempfile::NamedTempFile::new()
+        .map_err(|e| VicraftError::validation(format!("failed to create temp file: {e}")))?;
+    write!(tmp, "{initial}")
+        .map_err(|e| VicraftError::validation(format!("failed to write temp file: {e}")))?;
+    tmp.flush()
+        .map_err(|e| VicraftError::validation(format!("failed to flush temp file: {e}")))?;
     let editor = std::env::var("VISUAL")
         .or_else(|_| std::env::var("EDITOR"))
         .unwrap_or_else(|_| "vi".into());
     let status = std::process::Command::new(&editor)
         .arg(tmp.path())
-        .status()?;
+        .status()
+        .map_err(|e| {
+            VicraftError::external_tool(
+                &editor,
+                format!("failed to open editor: {e}"),
+                "Set $EDITOR or $VISUAL to a valid editor command",
+            )
+        })?;
     if !status.success() {
-        anyhow::bail!("Editor exited with non-zero status.");
+        return Err(VicraftError::external_tool(
+            &editor,
+            "editor exited with non-zero status",
+            "",
+        ));
     }
-    Ok(std::fs::read_to_string(tmp.path())?.trim().to_string())
+    let edited = std::fs::read_to_string(tmp.path())
+        .map_err(|e| VicraftError::validation(format!("failed to read edited file: {e}")))?;
+    Ok(edited.trim().to_string())
 }

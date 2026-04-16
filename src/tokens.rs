@@ -36,7 +36,9 @@ fn extract_number_before(text: &str, keyword: &str) -> Option<u64> {
     let token = before
         .split_whitespace()
         .next_back()?
-        .trim_matches(|c: char| !c.is_ascii_digit() && c != ',' && c != '.' && c != 'k' && c != 'K');
+        .trim_matches(|c: char| {
+            !c.is_ascii_digit() && c != ',' && c != '.' && c != 'k' && c != 'K'
+        });
 
     parse_number(token)
 }
@@ -75,11 +77,7 @@ pub fn display_usage(usage: &TokenUsage) {
             );
         }
         (Some(s), None) => {
-            println!(
-                "  {} {} sent",
-                "Tokens:".dimmed(),
-                format_count(*s).cyan()
-            );
+            println!("  {} {} sent", "Tokens:".dimmed(), format_count(*s).cyan());
         }
         (None, Some(r)) => {
             println!(
@@ -89,7 +87,11 @@ pub fn display_usage(usage: &TokenUsage) {
             );
         }
         (None, None) => {
-            println!("  {} {}", "Tokens:".dimmed(), "(usage data not available)".dimmed());
+            println!(
+                "  {} {}",
+                "Tokens:".dimmed(),
+                "(usage data not available)".dimmed()
+            );
         }
     }
 }
@@ -117,7 +119,10 @@ mod tests {
 
     #[test]
     fn parse_k_suffix() {
-        let usage = parse_token_line("Tokens: 1.2k sent, 0.8k received. Cost: $0.03 message, $0.15 session.").unwrap();
+        let usage = parse_token_line(
+            "Tokens: 1.2k sent, 0.8k received. Cost: $0.03 message, $0.15 session.",
+        )
+        .unwrap();
         assert_eq!(usage.sent, Some(1200));
         assert_eq!(usage.received, Some(800));
     }

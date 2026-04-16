@@ -8,6 +8,10 @@ use clap::{Parser, Subcommand};
     author
 )]
 pub struct Cli {
+    /// Show full error chain for debugging
+    #[arg(long, global = true)]
+    pub verbose: bool,
+
     #[command(subcommand)]
     pub command: Command,
 }

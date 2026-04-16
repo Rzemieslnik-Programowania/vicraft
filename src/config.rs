@@ -1,6 +1,8 @@
-use anyhow::{Context, Result};
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+use crate::error::{Result, VicraftError};
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
@@ -143,7 +145,13 @@ impl Default for WebSearchConfig {
 pub fn config_path() -> Result<PathBuf> {
     let base = dirs_next::config_dir()
         .or_else(|| dirs_next::home_dir().map(|h| h.join(".config")))
-        .context("Cannot determine config directory. Set $HOME or $XDG_CONFIG_HOME.")?;
+        .ok_or_else(|| {
+            VicraftError::config(
+                PathBuf::from("~/.config/vicraft/config.toml"),
+                "cannot determine config directory",
+                "Set $HOME or $XDG_CONFIG_HOME",
+            )
+        })?;
     Ok(base.join("vicraft").join("config.toml"))
 }
 
@@ -152,25 +160,47 @@ pub fn load() -> Result<Config> {
     if !path.exists() {
         return Ok(Config::default());
     }
-    let raw = std::fs::read_to_string(&path)
-        .with_context(|| format!("Failed to read config: {}", path.display()))?;
-    let table: toml::Table = raw
-        .parse()
-        .with_context(|| format!("Failed to parse config: {}", path.display()))?;
+    let raw = std::fs::read_to_string(&path).map_err(|e| {
+        VicraftError::config(
+            &path,
+            format!("failed to read: {e}"),
+            "Check file permissions",
+        )
+    })?;
+    let table: toml::Table = raw.parse().map_err(|e| {
+        VicraftError::config(
+            &path,
+            format!("TOML syntax error: {e}"),
+            "Fix the syntax in your config file",
+        )
+    })?;
     warn_unknown_model_keys(&table);
-    let cfg: Config = table
-        .try_into()
-        .with_context(|| format!("Failed to deserialize config: {}", path.display()))?;
+    let cfg: Config = table.try_into().map_err(|e| {
+        VicraftError::config(
+            &path,
+            format!("invalid config values: {e}"),
+            "Check field types match the expected schema",
+        )
+    })?;
     Ok(cfg)
 }
 
 fn warn_unknown_model_keys(table: &toml::Table) {
-    const KNOWN_KEYS: &[&str] = &["spec", "plan", "implement", "review", "commit", "pr", "scan"];
+    const KNOWN_KEYS: &[&str] = &[
+        "spec",
+        "plan",
+        "implement",
+        "review",
+        "commit",
+        "pr",
+        "scan",
+    ];
     if let Some(toml::Value::Table(models)) = table.get("models") {
         for key in models.keys() {
             if !KNOWN_KEYS.contains(&key.as_str()) {
                 eprintln!(
-                    "warning: unknown key `models.{}` in config — valid keys: {}",
+                    "{} unknown key `models.{}` in config — valid keys: {}",
+                    "Warning:".yellow().bold(),
                     key,
                     KNOWN_KEYS.join(", ")
                 );
@@ -182,10 +212,19 @@ fn warn_unknown_model_keys(table: &toml::Table) {
 pub fn save(cfg: &Config) -> Result<()> {
     let path = config_path()?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+        std::fs::create_dir_all(parent).map_err(|e| {
+            VicraftError::config(&path, format!("failed to create directory: {e}"), "")
+        })?;
     }
-    let raw = toml::to_string_pretty(cfg)?;
-    std::fs::write(&path, raw)?;
+    let raw = toml::to_string_pretty(cfg)
+        .map_err(|e| VicraftError::config(&path, format!("failed to serialize: {e}"), ""))?;
+    std::fs::write(&path, raw).map_err(|e| {
+        VicraftError::config(
+            &path,
+            format!("failed to write: {e}"),
+            "Check file permissions",
+        )
+    })?;
     Ok(())
 }
 
