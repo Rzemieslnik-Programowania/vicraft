@@ -4,7 +4,6 @@ use colored::Colorize;
 
 use crate::aider::{self, AiderCommand};
 use crate::config::Config;
-use crate::git::slugify;
 
 pub async fn run(input: &str, cfg: &Config) -> Result<()> {
     // 1. Fetch issue content
@@ -72,7 +71,10 @@ Follow the SPEC_TEMPLATE structure exactly. Do not add or remove sections.
 
     // 7. Summary
     println!();
-    println!("{}", "Next: review the spec, answer any Open questions (section 9), then run:".bold());
+    println!(
+        "{}",
+        "Next: review the spec, answer any Open questions (section 9), then run:".bold()
+    );
     println!("   {}", format!("vicraft plan {spec_path}").cyan());
 
     Ok(())
@@ -81,7 +83,17 @@ Follow the SPEC_TEMPLATE structure exactly. Do not add or remove sections.
 async fn load_issue(input: &str, cfg: &Config) -> Result<(String, String)> {
     if input.to_uppercase().starts_with("LINEAR-") {
         let id = input.to_uppercase();
-        let content = fetch_linear_issue(&id, &cfg.linear.api_token).await?;
+        let token = if !cfg.linear.api_token.is_empty() {
+            cfg.linear.api_token.clone()
+        } else {
+            std::env::var("SPEQ_LINEAR_TOKEN").map_err(|_| {
+                anyhow::anyhow!(
+                    "Linear API token not configured. Set `linear.api_token` in \
+                     ~/.config/vicraft/config.toml or export SPEQ_LINEAR_TOKEN."
+                )
+            })?
+        };
+        let content = fetch_linear_issue(&id, &token).await?;
         Ok((id.to_lowercase(), content))
     } else {
         let content = std::fs::read_to_string(input)
@@ -100,21 +112,22 @@ fn derive_task_id(path: &str) -> String {
 }
 
 async fn fetch_linear_issue(id: &str, token: &str) -> Result<String> {
-    if token.is_empty() {
-        anyhow::bail!(
-            "Linear API token not configured. Set `linear.api_token` in ~/.config/vicraft/config.toml \
-             or export SPEQ_LINEAR_TOKEN."
-        );
+    let issue_number = id.trim_start_matches("LINEAR-");
+    if !issue_number
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-')
+    {
+        anyhow::bail!("Invalid Linear issue ID format: {id}");
     }
 
-    let issue_number = id.trim_start_matches("LINEAR-");
     let query = serde_json::json!({
-        "query": format!(
-            r#"query {{ issue(id: "{issue_number}") {{
+        "query": r#"query($id: String!) {
+            issue(id: $id) {
                 title description
-                comments(first: 10) {{ nodes {{ body }} }}
-            }} }}"#
-        )
+                comments(first: 10) { nodes { body } }
+            }
+        }"#,
+        "variables": { "id": issue_number }
     });
 
     let client = reqwest::Client::new();
@@ -128,6 +141,19 @@ async fn fetch_linear_issue(id: &str, token: &str) -> Result<String> {
         .json()
         .await
         .context("Failed to parse Linear response")?;
+
+    if let Some(errors) = resp.get("errors").and_then(|e| e.as_array()) {
+        if !errors.is_empty() {
+            let msg: Vec<String> = errors
+                .iter()
+                .filter_map(|e| e["message"].as_str().map(String::from))
+                .collect();
+            anyhow::bail!("Linear API error: {}", msg.join("; "));
+        }
+    }
+    if resp["data"]["issue"].is_null() {
+        anyhow::bail!("Linear issue not found: {id}");
+    }
 
     let issue = &resp["data"]["issue"];
     let title = issue["title"].as_str().unwrap_or("(no title)");

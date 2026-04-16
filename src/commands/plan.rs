@@ -16,7 +16,10 @@ pub async fn run(input: &str, cfg: &Config) -> Result<()> {
     // 2. Guard: unanswered open questions
     let unanswered = unanswered_open_questions(&spec);
     if !unanswered.is_empty() {
-        eprintln!("{}", "⛔ Spec contains unanswered open questions.".red().bold());
+        eprintln!(
+            "{}",
+            "⛔ Spec contains unanswered open questions.".red().bold()
+        );
         eprintln!("   Answer them in the spec file before running `vicraft plan`:\n");
         for q in &unanswered {
             eprintln!("   {}", q.yellow());

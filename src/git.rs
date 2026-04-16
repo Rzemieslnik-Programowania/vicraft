@@ -5,8 +5,7 @@ use std::process::Command;
 
 /// Returns the name of the current git branch.
 pub fn current_branch() -> Result<String> {
-    let repo = Repository::open(".")
-        .context("Not a git repository. Run `git init` first.")?;
+    let repo = Repository::open(".").context("Not a git repository. Run `git init` first.")?;
     let head = repo.head().context("Could not read HEAD")?;
     let name = head
         .shorthand()
@@ -15,7 +14,7 @@ pub fn current_branch() -> Result<String> {
     Ok(name)
 }
 
-/// Returns the configured base branch (falls back to main → master).
+/// Returns the configured base branch.
 pub fn base_branch(configured: &str) -> String {
     configured.to_string()
 }
@@ -41,6 +40,12 @@ pub fn diff_staged(base: &str) -> Result<String> {
         .args(["diff", "--cached", base])
         .output()
         .context("Failed to run git diff --cached")?;
+    if !output.status.success() {
+        anyhow::bail!(
+            "git diff --cached failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
@@ -48,7 +53,12 @@ pub fn diff_staged(base: &str) -> Result<String> {
 pub fn create_branch_if_needed(branch: &str) -> Result<()> {
     // Check if branch exists
     let exists = Command::new("git")
-        .args(["show-ref", "--verify", "--quiet", &format!("refs/heads/{branch}")])
+        .args([
+            "show-ref",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/{branch}"),
+        ])
         .status()?
         .success();
 
@@ -80,8 +90,13 @@ pub fn wip_commit(task_id: &str) -> Result<()> {
     // Check if HEAD is already a WIP commit for this task
     let head_msg = Command::new("git")
         .args(["log", "-1", "--pretty=%s"])
-        .output()?;
-    let head_subject = String::from_utf8_lossy(&head_msg.stdout).trim().to_string();
+        .output()
+        .context("Failed to run git log")?;
+    let head_subject = if head_msg.status.success() {
+        String::from_utf8_lossy(&head_msg.stdout).trim().to_string()
+    } else {
+        String::new()
+    };
 
     // Stage everything
     let status = Command::new("git")
@@ -152,6 +167,7 @@ pub fn task_id_from_branch(branch: &str) -> String {
 }
 
 /// Returns true if the working tree or index has any changes.
+#[allow(dead_code)]
 pub fn has_changes() -> Result<bool> {
     let output = Command::new("git")
         .args(["status", "--porcelain"])
@@ -173,7 +189,6 @@ pub fn slugify(s: &str) -> String {
 
 /// Check if we are inside a git repository.
 pub fn assert_git_repo() -> Result<()> {
-    Repository::open(Path::new("."))
-        .context("Not a git repository. Run `git init` first.")?;
+    Repository::open(Path::new(".")).context("Not a git repository. Run `git init` first.")?;
     Ok(())
 }

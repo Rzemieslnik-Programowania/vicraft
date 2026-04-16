@@ -65,11 +65,7 @@ Rules:
     println!("{}", "─".repeat(60));
     println!();
 
-    let choice = Select::new(
-        "Action:",
-        vec!["Accept", "Edit manually", "Cancel"],
-    )
-    .prompt()?;
+    let choice = Select::new("Action:", vec!["Accept", "Edit manually", "Cancel"]).prompt()?;
 
     match choice {
         "Accept" => apply_commit(staged, &message)?,

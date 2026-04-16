@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Result};
 use chrono::Local;
 use colored::Colorize;
 
-use crate::aider::{self, AiderCommand};
+use crate::aider::AiderCommand;
 use crate::commands::plan::next_version;
 use crate::config::Config;
 use crate::git;
@@ -15,7 +15,12 @@ pub async fn run(cfg: &Config) -> Result<()> {
     let task_id = git::task_id_from_branch(&branch);
     let base = git::base_branch(&cfg.git.base_branch);
 
-    println!("{} Branch: {} → diffing against {}", "✓".green(), branch.yellow(), base.yellow());
+    println!(
+        "{} Branch: {} → diffing against {}",
+        "✓".green(),
+        branch.yellow(),
+        base.yellow()
+    );
 
     // 2. Get diff
     let diff = git::diff_base_to_head(&base)?;
@@ -28,11 +33,9 @@ pub async fn run(cfg: &Config) -> Result<()> {
 
     // 3. Load spec and plan
     let spec_path = format!(".specs/{task_id}_spec.md");
-    let spec = std::fs::read_to_string(&spec_path)
-        .unwrap_or_else(|_| "(spec not found)".into());
+    let spec = std::fs::read_to_string(&spec_path).unwrap_or_else(|_| "(spec not found)".into());
 
-    let plan = find_latest_plan(&task_id)
-        .unwrap_or_else(|| "(plan not found)".into());
+    let plan = find_latest_plan(&task_id).unwrap_or_else(|| "(plan not found)".into());
 
     let review_template = std::fs::read_to_string(".aider/templates/REVIEW_TEMPLATE.md")
         .context("REVIEW_TEMPLATE.md not found — run `vicraft init` first")?;
@@ -79,8 +82,7 @@ pub async fn run(cfg: &Config) -> Result<()> {
 
     // 5. Run review
     println!("{}", "Running AI review...".bold());
-    let output = AiderCommand::ask(&cfg.aider, &prompt)
-        .run_capture()?;
+    let output = AiderCommand::ask(&cfg.aider, &prompt).run_capture()?;
 
     // 6. Save review
     std::fs::create_dir_all(".reviews")?;

@@ -71,7 +71,10 @@ fn new_skill(name: &str) -> Result<()> {
 
 fn sync() -> Result<()> {
     println!("{}", "Syncing skills via Aider scan...".bold());
-    println!("{}", "Tip: vicraft scan also refreshes .aider/context/".yellow());
+    println!(
+        "{}",
+        "Tip: vicraft scan also refreshes .aider/context/".yellow()
+    );
     // Delegate to scan for now — a dedicated skill sync could be added later
     println!("Run: {}", "vicraft scan".cyan());
     Ok(())

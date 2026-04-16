@@ -37,6 +37,8 @@ impl<'a> AiderCommand<'a> {
         self
     }
 
+    /// Adds a file to Aider's editable list. Not yet called — reserved for future sub-commands.
+    #[allow(dead_code)]
     pub fn with_file(mut self, path: impl AsRef<Path>) -> Self {
         self.edit_files.push(path.as_ref().to_owned());
         self
@@ -44,7 +46,8 @@ impl<'a> AiderCommand<'a> {
 
     /// Run and capture stdout (for ask mode — spec/plan/review).
     pub fn run_capture(&self) -> Result<String> {
-        let output = self.build_command()
+        let output = self
+            .build_command()
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
             .output()
@@ -55,7 +58,8 @@ impl<'a> AiderCommand<'a> {
 
     /// Run interactively with inherited stdio (for impl mode).
     pub fn run_interactive(&self) -> Result<()> {
-        let status = self.build_command()
+        let status = self
+            .build_command()
             .status()
             .context("Failed to run aider — is it installed? (`pip install aider-chat`)")?;
         if !status.success() {
