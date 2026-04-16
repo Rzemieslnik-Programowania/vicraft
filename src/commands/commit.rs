@@ -30,7 +30,9 @@ pub async fn run(staged: bool, cfg: &Config) -> Result<()> {
     }
 
     // 2. Generate conventional commit message
+    let model = cfg.model_for_step("commit");
     println!("{}", "Generating commit message...".bold());
+    println!("  Model: {}", model.cyan());
     let prompt = format!(
         r#"Generate a conventional commit message for the following diff.
 
@@ -49,6 +51,7 @@ Rules:
     );
 
     let message = AiderCommand::ask(&cfg.aider, &prompt)
+        .override_model(model)
         .run_capture()?
         .trim()
         .to_string();

@@ -2,7 +2,7 @@ use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
 
-use crate::templates;
+use crate::{config, templates};
 
 pub fn run() -> Result<()> {
     println!("{}", "Initializing vicraft project structure...".bold());
@@ -62,6 +62,9 @@ pub fn run() -> Result<()> {
     update_gitignore()?;
     println!("  {} Updated .gitignore", "✓".green());
 
+    // Global config
+    write_default_config_if_missing()?;
+
     println!();
     println!("{}", "Next steps:".bold());
     println!("  1. Fill in {}", ".aider/CONVENTIONS.md".yellow());
@@ -81,6 +84,25 @@ fn write_if_missing(path: &str, content: &str) -> Result<()> {
     if !Path::new(path).exists() {
         std::fs::write(path, content)?;
     }
+    Ok(())
+}
+
+fn write_default_config_if_missing() -> Result<()> {
+    let path = config::config_path()?;
+    if path.exists() {
+        println!(
+            "  {} Config already exists: {}",
+            "→".blue(),
+            path.display()
+        );
+        return Ok(());
+    }
+    config::save(&config::Config::default())?;
+    println!(
+        "  {} Created default config: {}",
+        "✓".green(),
+        path.display()
+    );
     Ok(())
 }
 

@@ -29,11 +29,12 @@ pub async fn run(plan_path: &str, cfg: &Config) -> Result<()> {
     let prompt = build_impl_prompt(&plan, &spec);
 
     // 5. Run Aider in interactive/edit mode
+    let model = cfg.model_for_step("implement");
     println!("{}", "Running Aider implementation...".bold());
-    println!("  Model: {}", cfg.aider.model.cyan());
+    println!("  Model: {}", model.cyan());
     println!();
 
-    let mut cmd = AiderCommand::edit(&cfg.aider, &prompt);
+    let mut cmd = AiderCommand::edit(&cfg.aider, &prompt).override_model(model);
 
     for path in aider::default_read_files() {
         cmd = cmd.read(path);

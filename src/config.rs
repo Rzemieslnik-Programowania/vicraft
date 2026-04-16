@@ -6,11 +6,24 @@ use std::path::PathBuf;
 #[serde(default)]
 pub struct Config {
     pub aider: AiderConfig,
+    pub models: ModelsConfig,
     pub linear: LinearConfig,
     pub context7: Context7Config,
     pub git: GitConfig,
     pub editor: EditorConfig,
     pub web_search: WebSearchConfig,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct ModelsConfig {
+    pub spec: String,
+    pub plan: String,
+    pub implement: String,
+    pub review: String,
+    pub commit: String,
+    pub pr: String,
+    pub scan: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -55,6 +68,38 @@ pub struct WebSearchConfig {
     pub enabled: bool,
     pub provider: String,
     pub searxng_url: String,
+}
+
+impl Default for ModelsConfig {
+    fn default() -> Self {
+        Self {
+            spec: "ollama/qwen3:32b".into(),
+            plan: "ollama/deepseek-r1:32b".into(),
+            implement: "ollama/qwen3-coder:30b".into(),
+            review: "ollama/glm4:32b".into(),
+            commit: "ollama/qwen3:32b".into(),
+            pr: "ollama/qwen3:32b".into(),
+            scan: "ollama/qwen3-coder:30b".into(),
+        }
+    }
+}
+
+impl Config {
+    pub fn model_for_step(&self, step: &str) -> &str {
+        match step {
+            "spec" => &self.models.spec,
+            "plan" => &self.models.plan,
+            "implement" => &self.models.implement,
+            "review" => &self.models.review,
+            "commit" => &self.models.commit,
+            "pr" => &self.models.pr,
+            "scan" => &self.models.scan,
+            other => {
+                debug_assert!(false, "model_for_step: unknown step '{other}'");
+                &self.aider.model
+            }
+        }
+    }
 }
 
 impl Default for AiderConfig {
@@ -109,13 +154,31 @@ pub fn load() -> Result<Config> {
     }
     let raw = std::fs::read_to_string(&path)
         .with_context(|| format!("Failed to read config: {}", path.display()))?;
-    let cfg = toml::from_str(&raw)
+    let table: toml::Table = raw
+        .parse()
         .with_context(|| format!("Failed to parse config: {}", path.display()))?;
+    warn_unknown_model_keys(&table);
+    let cfg: Config = table
+        .try_into()
+        .with_context(|| format!("Failed to deserialize config: {}", path.display()))?;
     Ok(cfg)
 }
 
-/// Serializes and writes the config. Not yet called — reserved for future `vicraft config` command.
-#[allow(dead_code)]
+fn warn_unknown_model_keys(table: &toml::Table) {
+    const KNOWN_KEYS: &[&str] = &["spec", "plan", "implement", "review", "commit", "pr", "scan"];
+    if let Some(toml::Value::Table(models)) = table.get("models") {
+        for key in models.keys() {
+            if !KNOWN_KEYS.contains(&key.as_str()) {
+                eprintln!(
+                    "warning: unknown key `models.{}` in config — valid keys: {}",
+                    key,
+                    KNOWN_KEYS.join(", ")
+                );
+            }
+        }
+    }
+}
+
 pub fn save(cfg: &Config) -> Result<()> {
     let path = config_path()?;
     if let Some(parent) = path.parent() {
